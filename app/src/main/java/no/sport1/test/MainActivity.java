@@ -18,7 +18,7 @@ public class MainActivity extends AppCompatActivity {
 
     private void serialPortReader() {
         SerialPortManager.getInstance().openSerialPort();
-//        UHFHXAPI uhfhxapi = new UHFHXAPI();
-//        uhfhxapi.open();
+        UHFHXAPI uhfhxapi = new UHFHXAPI();
+        uhfhxapi.open();
     }
 }

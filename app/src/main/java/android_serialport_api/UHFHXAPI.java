@@ -692,9 +692,6 @@ public class UHFHXAPI {
 
     private LooperBuffer looperBuffer = new LoopBufferHX();
 
-    /**
-     * \C5̵㣬\CB\D1\CB\F7\B1\EAǩ
-     */
     public void startAutoRead(int commandCode, byte[] rc,
                               final AutoRead autoRead) {
         Packet p = new Packet(MessageType.Command, MessageCode.Start_Auto_Read,
@@ -779,13 +776,6 @@ public class UHFHXAPI {
         return response;
     }
 
-    /**
-     * \B6\C1ȡ\B1\EAǩ
-     *
-     * @param arguments
-     *            \B7\A2\CB͵\C4ָ\C1\EE
-     * @return \B6\C1\B5\BD\B5\C4\CA\FD\BE\DD
-     */
     public Response readTypeCTagData(byte[] arguments) {
         int length = transceive(MessageType.Command,
                 MessageCode.Read_Type_C_Tag_Data, arguments);

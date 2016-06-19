@@ -88,18 +88,10 @@ public class SerialPortManager {
         BAUDRATE = baudrate;
     }
 
-    /**
-     * ÅÐ¶ÏŽ®¿ÚÊÇ·ñŽò¿ª
-     *
-     * @return true£ºŽò¿ª false£ºÎŽŽò¿ª
-     */
     public boolean isOpen() {
         return isOpen;
     }
 
-    /**
-     * Žò¿ªŽ®¿Ú£¬Èç¹ûÐèÒª¶ÁÈ¡Éí·ÝÖ€ºÍÖžÎÆÐÅÏ¢£¬±ØÐëÏÈŽò¿ªŽ®¿Ú£¬µ÷ÓÃŽË·œ·š
-     */
     public boolean openSerialPort() {
         if (mSerialPort == null) {
             // ÉÏµç
