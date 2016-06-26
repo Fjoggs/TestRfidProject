@@ -1,5 +1,8 @@
 package android_serialport_api;
 
+import android.os.SystemClock;
+import android.util.Log;
+
 import java.io.BufferedReader;
 import java.io.File;
 import java.io.FileInputStream;
@@ -8,44 +11,54 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.OutputStream;
-
-import android.os.SystemClock;
-import android.util.Log;
+import java.security.InvalidParameterException;
 
 public class SerialPortManager {
-    private byte[] buffer = new byte[1024];
 
-    private static int BAUDRATE = 230400;
+    private static int BAUDRATE = 460800;
 
     public static boolean switchRFID = false;
 
-    final byte[] UP = { '1' };
-    final byte[] DOWN = { '0' };
+    final byte[] UP = {'1'};
+    final byte[] DOWN = {'0'};
 
-    private static final String[] PATHS = { "/dev/ttyHS1", "/dev/ttyHSL0",
-            "/dev/ttyHSL0", "/dev/ttyHSL0", "/dev/ttyHSL1", "/dev/ttyHSL1" };
-    private static final String[] GPIO_DEVS = { "/sys/GPIO/GPIO13/value",
+    private static final String[] PATHS = {"/dev/ttyHS1", "/dev/ttyHSL0",
+            "/dev/ttyHSL0", "/dev/ttyHSL0", "/dev/ttyHSL0", "/dev/ttyHSL0",
+            "/dev/ttyHSL0", "/dev/ttyHSL0"};
+
+    private static final String[] GPIO_DEVS = {"/sys/GPIO/GPIO13/value",
             "/sys/class/pwv_gpios/pwv-seccpu/enable",
             "/sys/class/pwv_gpios/as602-en/enable",
             "/sys/class/pwv_gpios/as602-en/enable",
-            "/sys/class/cw_gpios/printer_en/enable",
-            "/sys/class/iccard_gpio/iccard_en/enable" };
-    private static final String[] VERSION = { "M802", "M806", "SIMT1200",
-            "COREWISE_V0", "msm8610", "CPOS800" };
-    /**
-     * Ž®¿ÚÉè±žÂ·Ÿ¶
-     */
-    private static String PATH = PATHS[0];
-    private static String GPIO_DEV = GPIO_DEVS[0];
+            "/sys/class/pwv_gpios/as602-en/enable",
+            "/sys/class/pwv_gpios/as602-en/enable",
+            "/sys/class/pwv_gpios/as602-en/enable",
+            "/sys/class/pwv_gpios/as602-en/enable"};
+    private static final String[] VERSION = {"M802", "M806", "A370",
+            "COREWISE_V0", "CFON640", "ZTE Blade A460", "CFON640_50",
+            "CFON640_43"};
+    private static String PATH = PATHS[4];
+    private static String GPIO_DEV = GPIO_DEVS[4];
+
     static {
+        Log.i("ll AS602 P MODEL NAME=", "MODEL=" + android.os.Build.MODEL);
+        // Toast.makeText(getApplicationContext(), "Ĭ��Toast��ʽ",
+        // Toast.LENGTH_SHORT).show();
         for (int i = 0; i < VERSION.length; i++) {
             if (VERSION[i].equals(android.os.Build.MODEL)) {
                 PATH = PATHS[i];
+                // Log.i("ll AS602 POWER MODEL NAME=", "path="+PATH );
+
                 GPIO_DEV = GPIO_DEVS[i];
+                // Log.i("ll AS602 POWER MODEL NAME=", "gpio_dev ="+GPIO_DEV );
                 break;
             }
         }
     }
+
+    private static SerialPortManager mSerialPortManager = new SerialPortManager();
+
+    private static final byte[] SWITCH_COMMAND = "D&C00040104".getBytes();
 
     private SerialPort mSerialPort = null;
 
@@ -63,24 +76,10 @@ public class SerialPortManager {
 
     private ReadThread mReadThread;
 
-    /**
-     * »ñÈ¡žÃÀàµÄÊµÀý¶ÔÏó£¬Îªµ¥Àý
-     *
-     * @return
-     */
-    private volatile static SerialPortManager mSerialPortManager;
-
     private SerialPortManager() {
     }
 
     public static SerialPortManager getInstance() {
-        if (mSerialPortManager == null) {
-            synchronized (SerialPortManager.class) {
-                if (mSerialPortManager == null) {
-                    mSerialPortManager = new SerialPortManager();
-                }
-            }
-        }
         return mSerialPortManager;
     }
 
@@ -92,39 +91,30 @@ public class SerialPortManager {
         return isOpen;
     }
 
-    public boolean openSerialPort() {
-        if (mSerialPort == null) {
-            // ÉÏµç
-            try {
-                setUpGpio();
-                mSerialPort = new SerialPort(new File(PATH), 230400, 0);
-            } catch (IOException e) {
-                e.printStackTrace();
-                return false;
-            }
-
-            mOutputStream = mSerialPort.getOutputStream();
-            mInputStream = mSerialPort.getInputStream();
-            mReadThread = new ReadThread();
-            mReadThread.start();
-            isOpen = true;
-            firstOpen = true;
-            return true;
+    public void switchStatus() {
+        if (!isOpen) {
+            return;
         }
-        return false;
+        write(SWITCH_COMMAND);
+        Log.i("whw", "SWITCH_COMMAND hex=" + new String(SWITCH_COMMAND));
+        SystemClock.sleep(200);
+        if (!isOpen) {
+            return;
+        }
+        switchRFID = true;
+        Log.i("whw", "SWITCH_COMMAND end");
     }
 
-    /**
-     * Žò¿ªŽòÓ¡»úŽ®¿Ú
-     */
-    public boolean openSerialPortPrinter() {
+    public boolean openSerialPort() {
         if (mSerialPort == null) {
-            // ÉÏµç
+            // �ϵ�
             try {
-                setUpGpioPrinter();
-                mSerialPort = new SerialPort(new File("/dev/ttyHSL0"), 230400,
-                        0);
+                setUpGpio();
+                Log.i("whw", "setUpGpio status=" + getGpioStatus());
+                /* Open the serial port */
+                mSerialPort = new SerialPort(new File(PATH), BAUDRATE, 0);
             } catch (IOException e) {
+                // TODO Auto-generated catch block
                 e.printStackTrace();
                 return false;
             }
@@ -161,51 +151,14 @@ public class SerialPortManager {
         return false;
     }
 
-    public boolean openSerialPort3() {
-        if (mSerialPort == null) {
-            try {
-                mSerialPort = new SerialPort(new File("/dev/ttyHSL2"), 115200,
-                        0);
-            } catch (SecurityException e) {
-                e.printStackTrace();
-            } catch (IOException e) {
-                e.printStackTrace();
-            }
-            Log.i("whw", "mSerialPort=" + mSerialPort);
-            mOutputStream = mSerialPort.getOutputStream();
-            mInputStream = mSerialPort.getInputStream();
-            mReadThread = new ReadThread();
-            mReadThread.start();
-            isOpen = true;
-            firstOpen = true;
-            return true;
-        }
-        return false;
-    }
-
-    /**
-     * ¹Ø±ÕŽ®¿Ú£¬Èç¹û²»ÐèÒª¶ÁÈ¡ÖžÎÆ»òÉí·ÝÖ€ÐÅÏ¢Ê±£¬ŸÍ¹Ø±ÕŽ®¿Ú(¿ÉÒÔœÚÔŒµç³ØµçÁ¿)£¬œšÒé³ÌÐòÍË³öÊ±¹Ø±Õ
-     */
-    public void closeSerialPort(int flag) {
+    public void closeSerialPort() {
         if (mReadThread != null)
             mReadThread.interrupt();
         mReadThread = null;
         try {
-            switch (flag) {
-                case 0:
-                    setDownGpio();
-                    setDownGpioPrinter();
-                    break;
-                case 1:
-                    setDownGpio();
-                    break;
-                case 2:
-                    setDownGpioPrinter();
-                    break;
-                default:
-                    break;
-            }
-
+            // �ϵ�
+            setDownGpio();
+            Log.i("whw", "setDownGpio status=" + getGpioStatus());
         } catch (IOException e1) {
             e1.printStackTrace();
         }
@@ -251,7 +204,7 @@ public class SerialPortManager {
         }
     }
 
-    public synchronized int read(byte buffer[], int waittime, int interval) {
+    protected synchronized int read(byte buffer[], int waittime, int interval) {
         if (!isOpen) {
             return 0;
         }
@@ -287,18 +240,20 @@ public class SerialPortManager {
                 System.arraycopy(mBuffer, 0, buffer, 0, mCurrentSize);
             }
         } else {
+            // closeSerialPort2();
             SystemClock.sleep(100);
+            // openSerialPort2();
         }
         return mCurrentSize;
     }
 
-    public synchronized int readFixedLength(byte buffer[], int waittime,
-                                            int requestLength) {
+    protected synchronized int readFixedLength(byte buffer[], int waittime,
+                                               int requestLength) {
         return readFixedLength(buffer, waittime, requestLength, 15);
     }
 
-    public synchronized int readFixedLength(byte buffer[], int waittime,
-                                            int requestLength, int interval) {
+    protected synchronized int readFixedLength(byte buffer[], int waittime,
+                                               int requestLength, int interval) {
         if (!isOpen) {
             return 0;
         }
@@ -357,7 +312,7 @@ public class SerialPortManager {
             return;
         }
         if (firstOpen) {
-            SystemClock.sleep(500);
+            SystemClock.sleep(2000);
             firstOpen = false;
         }
         mCurrentSize = 0;
@@ -372,31 +327,18 @@ public class SerialPortManager {
     }
 
     public synchronized void write(byte[] data) {
+        Log.i("whw", "send commnad=" + DataUtils.toHexString(data));
         writeCommand(data);
     }
 
-    public void setUpGpio() throws IOException {
+    private void setUpGpio() throws IOException {
         FileOutputStream fw = new FileOutputStream(GPIO_DEV);
         fw.write(UP);
         fw.close();
     }
 
-    public void setDownGpio() throws IOException {
+    private void setDownGpio() throws IOException {
         FileOutputStream fw = new FileOutputStream(GPIO_DEV);
-        fw.write(DOWN);
-        fw.close();
-    }
-
-    public void setUpGpioPrinter() throws IOException {
-        FileOutputStream fw = new FileOutputStream(
-                "/sys/class/cw_gpios/printer_en/enable");
-        fw.write(UP);
-        fw.close();
-    }
-
-    public void setDownGpioPrinter() throws IOException {
-        FileOutputStream fw = new FileOutputStream(
-                "/sys/class/cw_gpios/printer_en/enable");
         fw.write(DOWN);
         fw.close();
     }
@@ -409,16 +351,14 @@ public class SerialPortManager {
         value = br.readLine();
         inStream.close();
         return value;
-    }
 
-    public synchronized void clearBuffer() {
-        mCurrentSize = 0;
     }
 
     private class ReadThread extends Thread {
+
         @Override
         public void run() {
-            byte[] buffer = new byte[5120000];
+            byte[] buffer = new byte[512];
             while (!isInterrupted()) {
                 int length = 0;
                 try {
@@ -429,12 +369,16 @@ public class SerialPortManager {
                         if (looperBuffer != null) {
                             byte[] buf = new byte[length];
                             System.arraycopy(buffer, 0, buf, 0, length);
+                            Log.i("xuws",
+                                    "recv buf=" + DataUtils.toHexString(buf));
                             looperBuffer.add(buf);
                         } // else {
                         System.arraycopy(buffer, 0, mBuffer, mCurrentSize,
                                 length);
                         mCurrentSize += length;
                         // }
+                        Log.i("whw", "mCurrentSize=" + mCurrentSize
+                                + "  length=" + length);
                     }
                 } catch (IOException e) {
                     e.printStackTrace();
@@ -444,21 +388,4 @@ public class SerialPortManager {
         }
     }
 
-    public boolean isUpGpio() {
-        int length = SerialPortManager.getInstance().read(buffer, 3000, 100);
-        if (2 > length) {
-            return false;
-        }
-
-        byte[] recvData = new byte[length];
-
-        System.arraycopy(buffer, 0, recvData, 0, length);
-        DataUtils.toHexString(recvData);
-        for (int i = 0; i < length - 1; i++) {
-            if (recvData[i] == 50 && recvData[i + 1] == 80) {
-                return true;
-            }
-        }
-        return false;
-    }
 }
